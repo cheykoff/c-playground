@@ -28,6 +28,7 @@ void print_array(int array_length, int array[])
         printf("%i, ", array[i]);
     }
     printf("%i\n", array[array_length - 1]);
+    return;
 }
 
 void bubble_sort_array(int array_length, int array[])
