@@ -79,9 +79,12 @@ main.wrap { padding-block: 16px 40px; display: flex; flex-direction: column; gap
 .num { width: 84px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 6px 8px; font: 600 17px/1 var(--font-num); font-variant-numeric: tabular-nums; }
 .row2 { display: flex; flex-wrap: wrap; gap: 14px 22px; }
 .manual { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.manual label { min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
-.manual label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.manual .num { width: 100%; }
+.mf { min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
+.mf label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrow { display: flex; gap: 4px; }
+.sign { flex: none; width: 36px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; font-weight: 700; font-size: 17px; padding: 0; }
+.sign[aria-pressed="true"] { background: var(--herz); border-color: var(--herz); color: var(--on-accent); }
+.manual .num { width: 100%; min-width: 0; }
 .hint { font-size: 13px; color: var(--muted); min-height: 1.4em; }
 .hint.warn { color: var(--herz); }
 .actions { display: flex; gap: 8px; }
@@ -262,15 +265,29 @@ footer.tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-
 
     const man = $("manual");
     if (!man.children.length) {
-      man.innerHTML = [0, 1, 2, 3].map((i) => '<label><span id="mlab' + i + '"></span><input class="num" id="man' + i + '" type="text" inputmode="numeric" placeholder="0"></label>').join("");
-      [0, 1, 2, 3].forEach((i) => $("man" + i).addEventListener("input", (e) => { ui.manual[i] = e.target.value.replace(/[^\d-]/g, ""); updateHint(); }));
+      man.innerHTML = [0, 1, 2, 3].map((i) => '<div class="mf"><label for="man' + i + '" id="mlab' + i + '"></label><div class="mrow"><button class="sign" id="sign' + i + '" aria-label="Minus umschalten">−</button><input class="num" id="man' + i + '" type="text" inputmode="numeric" placeholder="0"></div></div>').join("");
+      [0, 1, 2, 3].forEach((i) => {
+        $("man" + i).addEventListener("input", (e) => {
+          const raw = e.target.value.replace(/[^\d-]/g, "");
+          ui.manual[i] = (raw.startsWith("-") ? "-" : "") + raw.replace(/-/g, "");
+          if (ui.manual[i] !== e.target.value) e.target.value = ui.manual[i];
+          syncSign(i); updateHint();
+        });
+        $("sign" + i).addEventListener("click", () => {
+          const v = ui.manual[i];
+          ui.manual[i] = v.startsWith("-") ? v.slice(1) : "-" + v;
+          $("man" + i).value = ui.manual[i];
+          syncSign(i); updateHint();
+        });
+      });
     }
-    [0, 1, 2, 3].forEach((i) => { $("mlab" + i).textContent = state.names[i]; const el = $("man" + i); if (document.activeElement !== el) el.value = ui.manual[i]; });
+    [0, 1, 2, 3].forEach((i) => { $("mlab" + i).textContent = state.names[i]; const el = $("man" + i); if (document.activeElement !== el) el.value = ui.manual[i]; syncSign(i); });
 
     const c = $("custom");
     c.addEventListener("input", () => { ui.custom = c.value; renderEntryKeepFocus(); });
     updateHint();
   }
+  function syncSign(i) { $("sign" + i).setAttribute("aria-pressed", ui.manual[i].startsWith("-")); }
   function renderEntryKeepFocus() {
     const pos = $("custom").selectionStart;
     renderEntry();
