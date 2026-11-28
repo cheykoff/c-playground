@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Schafkopf Block</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky score bar (always-visible totals) over an entry card and a newest-first game log */
+:root {
+  --bg: #eef2ee;
+  --surface: #ffffff;
+  --ink: #18221c;
+  --muted: #5d6b62;
+  --line: #d5ddd7;
+  --gras: #2f6b3f;        /* accent: Gras (green suit) */
+  --gras-soft: #dcebdf;
+  --herz: #b3261e;        /* negative: Herz */
+  --plus: #1f7a3a;
+  --on-accent: #ffffff;
+  --bar: #1f4a2c;
+  --bar-ink: #f2f7f3;
+  --bar-muted: #a9c3b0;
+  --font-num: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111713; --surface: #1a221d; --ink: #e6ede8; --muted: #95a59a; --line: #2c3830;
+    --gras: #5fb276; --gras-soft: #22372a; --herz: #ff7b72; --plus: #6fd08a; --on-accent: #0d1a11;
+    --bar: #0b2414; --bar-ink: #eef6f0; --bar-muted: #8fb39a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111713; --surface: #1a221d; --ink: #e6ede8; --muted: #95a59a; --line: #2c3830;
+  --gras: #5fb276; --gras-soft: #22372a; --herz: #ff7b72; --plus: #6fd08a; --on-accent: #0d1a11;
+  --bar: #0b2414; --bar-ink: #eef6f0; --bar-muted: #8fb39a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bar); }
+.wrap { max-width: 640px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--gras); outline-offset: 2px; }
+
+/* Score bar */
+.scorebar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bar); color: var(--bar-ink); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+.scorebar .wrap { padding-block: 10px 12px; }
+.meta { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--bar-muted); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
+.meta strong { color: var(--bar-ink); font-weight: 600; }
+.totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tot { min-width: 0; border-radius: 10px; padding: 6px 6px 8px; background: rgba(255,255,255,.06); position: relative; }
+.tot.lead { background: rgba(255,255,255,.14); }
+.tot input { width: 100%; background: transparent; border: 0; border-bottom: 1px dashed transparent; color: var(--bar-ink); font: 500 16px/1.2 var(--font-body); padding: 2px 0; text-overflow: ellipsis; }
+.tot input:hover, .tot input:focus { border-bottom-color: var(--bar-muted); outline: none; }
+.tot .sum { font: 700 34px/1 var(--font-num); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tot .sum.neg { color: #ffb4ad; }
+.tot .dealer { position: absolute; bottom: 9px; right: 6px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; background: var(--bar-ink); color: var(--bar); border-radius: 4px; padding: 1px 4px; font-weight: 600; }
+
+main.wrap { padding-block: 16px 40px; display: flex; flex-direction: column; gap: 18px; }
+
+/* Entry card */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+.tabs { display: flex; gap: 4px; background: var(--bg); padding: 3px; border-radius: 9px; align-self: flex-start; }
+.tabs button { border: 0; background: transparent; color: var(--muted); padding: 5px 12px; border-radius: 7px; font-size: 13px; font-weight: 500; }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+.players { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.pbtn { min-width: 0; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.pbtn .nm { font-weight: 600; font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pbtn .pv { font: 600 20px/1 var(--font-num); font-variant-numeric: tabular-nums; color: var(--muted); }
+.pbtn[aria-pressed="true"] { border-color: var(--gras); background: var(--gras-soft); }
+.pbtn .pv.pos { color: var(--plus); } .pbtn .pv.neg { color: var(--herz); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 13px; font: 600 16px/1 var(--font-num); font-variant-numeric: tabular-nums; }
+.chip[aria-pressed="true"] { background: var(--gras); border-color: var(--gras); color: var(--on-accent); }
+.num { width: 84px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 6px 8px; font: 600 17px/1 var(--font-num); font-variant-numeric: tabular-nums; }
+.row2 { display: flex; flex-wrap: wrap; gap: 14px 22px; }
+.manual { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.manual label { min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
+.manual label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.manual .num { width: 100%; }
+.hint { font-size: 13px; color: var(--muted); min-height: 1.4em; }
+.hint.warn { color: var(--herz); }
+.actions { display: flex; gap: 8px; }
+.primary { flex: 1; border: 0; background: var(--gras); color: var(--on-accent); border-radius: 10px; padding: 12px; font-weight: 600; font-size: 15px; }
+.primary:disabled { opacity: .4; cursor: not-allowed; }
+.ghost { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+.ghost.danger { color: var(--herz); border-color: var(--herz); }
+
+/* Log */
+.loghead { display: flex; justify-content: space-between; align-items: baseline; }
+.loghead h2 { font: 600 22px/1 var(--font-num); letter-spacing: .02em; margin: 0; text-transform: uppercase; }
+.log { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 6px; text-align: right; border-bottom: 1px solid var(--line); }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; width: 42px; color: var(--muted); font-size: 13px; }
+td.v { font: 600 19px/1 var(--font-num); }
+td.v small { display: block; font: 500 12px/1.2 var(--font-num); color: var(--muted); margin-top: 3px; }
+td.v.pos { color: var(--plus); } td.v.neg { color: var(--herz); } td.v.zero { color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--bg); }
+tr.confirm td { background: var(--gras-soft); }
+.confirmbar { display: flex; gap: 8px; justify-content: flex-end; align-items: center; font-size: 13px; }
+.confirmbar button { padding: 6px 12px; font-size: 13px; }
+.empty { padding: 26px 16px; text-align: center; color: var(--muted); }
+footer.tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.unit { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+@media (max-width: 380px) { .tot .sum { font-size: 28px; } }
+@media (prefers-reduced-motion: no-preference) { .tot .sum { transition: color .2s; } }
+</style>
+
+<header class="scorebar" aria-label="Spielstand">
+  <div class="wrap">
+    <div class="meta"><span>Spiel <strong id="gameNo">1</strong></span><span id="dealerInfo"></span></div>
+    <div class="totals" id="totals"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card" aria-label="Spiel eintragen">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tabWin" aria-selected="true">Gewinner</button>
+      <button role="tab" id="tabMan" aria-selected="false">Manuell</button>
+    </div>
+
+    <div id="modeWin">
+      <div class="label">Wer hat gewonnen?</div>
+      <div class="players" id="winners"></div>
+    </div>
+
+    <div id="modeWinOpts" class="row2">
+      <div>
+        <div class="label">Tarif</div>
+        <div class="chips" id="amounts"></div>
+      </div>
+      <div>
+        <div class="label">Klopfen / Kontra</div>
+        <div class="chips" id="mults"></div>
+      </div>
+    </div>
+
+    <div id="modeMan" hidden>
+      <div class="label">Punkte pro Spieler</div>
+      <div class="manual" id="manual"></div>
+    </div>
+
+    <div class="hint" id="hint"></div>
+    <div class="actions">
+      <button class="primary" id="add">Eintragen</button>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:10px">
+    <div class="loghead"><h2>Spiele</h2><button class="ghost" id="undo">Letztes löschen</button></div>
+    <div class="log" id="log"></div>
+  </section>
+
+  <footer class="tools">
+    <div class="unit">
+      <span>Anzeige</span>
+      <div class="chips" id="units"></div>
+    </div>
+    <div id="resetBox"><button class="ghost danger" id="reset">Neue Liste</button></div>
+  </footer>
+</main>
+
+<script>
+(function () {
+  const KEY = "schafkopf-block-v1";
+  const AMOUNTS = [10, 20, 30, 50, 100];
+  const MULTS = [1, 2, 4, 8];
+  let state = { names: ["Spieler 1", "Spieler 2", "Spieler 3", "Spieler 4"], games: [], unit: "pt" };
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.games) && Array.isArray(s.names)) state = Object.assign(state, s); } catch (e) {}
+  const ui = { mode: "win", winners: new Set(), amount: 20, custom: "", mult: 1, manual: ["", "", "", ""], confirmRow: null, confirmReset: false };
+
+  const $ = (id) => document.getElementById(id);
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+  const fmt = (n, sign) => {
+    let s;
+    if (state.unit === "eur") s = (Math.abs(n) / 100).toFixed(2).replace(".", ",") + " €";
+    else s = String(Math.abs(n));
+    if (n < 0) return "−" + s;
+    if (sign && n > 0) return "+" + s;
+    return s;
+  };
+  const cls = (n) => (n > 0 ? "pos" : n < 0 ? "neg" : "zero");
+  const totals = () => state.games.reduce((t, g) => t.map((x, i) => x + g.v[i]), [0, 0, 0, 0]);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function preview() {
+    if (ui.mode === "man") {
+      const v = ui.manual.map((x) => parseInt(x, 10) || 0);
+      return v.some((x) => x !== 0) ? v : null;
+    }
+    const w = ui.winners.size;
+    const a = (ui.custom !== "" ? parseInt(ui.custom, 10) || 0 : ui.amount) * ui.mult;
+    if (w < 1 || w > 3 || a <= 0) return null;
+    return [0, 1, 2, 3].map((i) => {
+      const win = ui.winners.has(i);
+      if (w === 1) return win ? 3 * a : -a;
+      if (w === 3) return win ? a : -3 * a;
+      return win ? a : -a;
+    });
+  }
+
+  function renderTotals() {
+    const t = totals();
+    const max = Math.max(...t);
+    const dealer = state.games.length % 4;
+    $("gameNo").textContent = state.games.length + 1;
+    $("dealerInfo").innerHTML = "Es gibt: <strong>" + esc(state.names[dealer]) + "</strong>";
+    const box = $("totals");
+    if (!box.children.length) {
+      box.innerHTML = [0, 1, 2, 3].map((i) =>
+        '<div class="tot" id="tot' + i + '"><input id="name' + i + '" aria-label="Name Spieler ' + (i + 1) + '" maxlength="16"><div class="sum" id="sum' + i + '"></div></div>').join("");
+      [0, 1, 2, 3].forEach((i) => {
+        const inp = $("name" + i);
+        inp.addEventListener("input", () => { state.names[i] = inp.value || "Spieler " + (i + 1); save(); renderEntry(); renderLog(); $("dealerInfo").innerHTML = "Es gibt: <strong>" + esc(state.names[state.games.length % 4]) + "</strong>"; renderDealerTag(); });
+        inp.addEventListener("focus", () => inp.select());
+      });
+    }
+    [0, 1, 2, 3].forEach((i) => {
+      const inp = $("name" + i);
+      if (document.activeElement !== inp) inp.value = state.names[i];
+      const sum = $("sum" + i);
+      sum.textContent = fmt(t[i]);
+      sum.className = "sum" + (t[i] < 0 ? " neg" : "");
+      $("tot" + i).classList.toggle("lead", state.games.length > 0 && t[i] === max && max > 0);
+    });
+    renderDealerTag();
+  }
+  function renderDealerTag() {
+    const dealer = state.games.length % 4;
+    [0, 1, 2, 3].forEach((i) => {
+      const el = $("tot" + i); let tag = el.querySelector(".dealer");
+      if (i === dealer && !tag) { tag = document.createElement("span"); tag.className = "dealer"; tag.textContent = "gibt"; el.appendChild(tag); }
+      if (i !== dealer && tag) tag.remove();
+    });
+  }
+
+  function renderEntry() {
+    $("tabWin").setAttribute("aria-selected", ui.mode === "win");
+    $("tabMan").setAttribute("aria-selected", ui.mode === "man");
+    $("modeWin").hidden = ui.mode !== "win";
+    $("modeWinOpts").hidden = ui.mode !== "win";
+    $("modeMan").hidden = ui.mode !== "man";
+    const p = preview();
+
+    $("winners").innerHTML = [0, 1, 2, 3].map((i) => {
+      const v = p ? p[i] : null;
+      return '<button class="pbtn" data-p="' + i + '" aria-pressed="' + ui.winners.has(i) + '"><span class="nm">' + esc(state.names[i]) + '</span><span class="pv ' + (v === null ? "" : cls(v)) + '">' + (v === null ? "–" : fmt(v, true)) + "</span></button>";
+    }).join("");
+
+    $("amounts").innerHTML = AMOUNTS.map((a) => '<button class="chip" data-a="' + a + '" aria-pressed="' + (ui.custom === "" && ui.amount === a) + '">' + fmt(a) + "</button>").join("") +
+      '<input class="num" id="custom" type="number" inputmode="numeric" min="1" placeholder="eigener" value="' + esc(ui.custom) + '" aria-label="Eigener Tarif">';
+    $("mults").innerHTML = MULTS.map((m) => '<button class="chip" data-m="' + m + '" aria-pressed="' + (ui.mult === m) + '">×' + m + "</button>").join("");
+
+    const man = $("manual");
+    if (!man.children.length) {
+      man.innerHTML = [0, 1, 2, 3].map((i) => '<label><span id="mlab' + i + '"></span><input class="num" id="man' + i + '" type="text" inputmode="numeric" placeholder="0"></label>').join("");
+      [0, 1, 2, 3].forEach((i) => $("man" + i).addEventListener("input", (e) => { ui.manual[i] = e.target.value.replace(/[^\d-]/g, ""); updateHint(); }));
+    }
+    [0, 1, 2, 3].forEach((i) => { $("mlab" + i).textContent = state.names[i]; const el = $("man" + i); if (document.activeElement !== el) el.value = ui.manual[i]; });
+
+    const c = $("custom");
+    c.addEventListener("input", () => { ui.custom = c.value; renderEntryKeepFocus(); });
+    updateHint();
+  }
+  function renderEntryKeepFocus() {
+    const pos = $("custom").selectionStart;
+    renderEntry();
+    const c = $("custom"); c.focus(); try { c.setSelectionRange(pos, pos); } catch (e) {}
+  }
+  function updateHint() {
+    const p = preview(); const h = $("hint");
+    h.classList.remove("warn");
+    if (ui.mode === "win") {
+      const w = ui.winners.size;
+      if (w === 0) h.textContent = "Gewinner antippen: 1 = Solo gewonnen, 2 = Rufspiel, 3 = Solo verloren.";
+      else if (w === 4) { h.textContent = "Es können nicht alle vier gewinnen."; h.classList.add("warn"); }
+      else if (!p) h.textContent = "Tarif wählen.";
+      else h.textContent = (w === 1 ? "Solo gewonnen" : w === 3 ? "Solo verloren" : "Rufspiel / Zweier") + (ui.mult > 1 ? " · ×" + ui.mult : "");
+    } else {
+      const v = ui.manual.map((x) => parseInt(x, 10) || 0);
+      const s = v.reduce((a, b) => a + b, 0);
+      if (!p) h.textContent = "Werte eintragen, Verlierer mit Minus.";
+      else if (s !== 0) { h.textContent = "Summe ist " + fmt(s, true) + ", sollte 0 sein."; h.classList.add("warn"); }
+      else h.textContent = "Summe stimmt.";
+    }
+    $("add").disabled = !p;
+  }
+
+  function renderLog() {
+    const log = $("log");
+    if (!state.games.length) {
+      log.innerHTML = '<div class="empty">Noch keine Spiele. Oben Gewinner antippen, Tarif wählen und eintragen.<br>Namen änderst du direkt in der grünen Leiste.</div>';
+      $("undo").hidden = true;
+      return;
+    }
+    $("undo").hidden = false;
+    const running = [];
+    let t = [0, 0, 0, 0];
+    state.games.forEach((g) => { t = t.map((x, i) => x + g.v[i]); running.push(t); });
+    let rows = "";
+    for (let k = state.games.length - 1; k >= 0; k--) {
+      const g = state.games[k];
+      if (ui.confirmRow === k) {
+        rows += '<tr class="confirm"><td>' + (k + 1) + '</td><td colspan="4"><div class="confirmbar">Spiel ' + (k + 1) + ' löschen? <button class="ghost" data-cancel="1">Abbrechen</button><button class="ghost danger" data-del="' + k + '">Löschen</button></div></td></tr>';
+        continue;
+      }
+      rows += '<tr data-row="' + k + '"><td>' + (k + 1) + "</td>" + g.v.map((v, i) => '<td class="v ' + cls(v) + '">' + fmt(v, true) + "<small>" + fmt(running[k][i]) + "</small></td>").join("") + "</tr>";
+    }
+    log.innerHTML = "<table><thead><tr><th>#</th>" + state.names.map((n) => "<th>" + esc(n) + "</th>").join("") + "</tr></thead><tbody>" + rows + "</tbody></table>";
+  }
+
+  function renderUnits() {
+    $("units").innerHTML = [["pt", "Punkte"], ["eur", "Cent → €"]].map(([k, l]) => '<button class="chip" data-u="' + k + '" aria-pressed="' + (state.unit === k) + '" style="font-family:var(--font-body);font-size:13px">' + l + "</button>").join("");
+  }
+  function renderReset() {
+    $("resetBox").innerHTML = ui.confirmReset
+      ? '<div class="confirmbar">Alle Spiele löschen? <button class="ghost" id="resetNo">Abbrechen</button><button class="ghost danger" id="resetYes">Ja, neue Liste</button></div>'
+      : '<button class="ghost danger" id="reset">Neue Liste</button>';
+  }
+  function renderAll() { renderTotals(); renderEntry(); renderLog(); renderUnits(); renderReset(); }
+
+  // Events
+  $("tabWin").onclick = () => { ui.mode = "win"; renderEntry(); };
+  $("tabMan").onclick = () => { ui.mode = "man"; renderEntry(); };
+  $("winners").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-p]"); if (!b) return;
+    const i = +b.dataset.p; ui.winners.has(i) ? ui.winners.delete(i) : ui.winners.add(i); renderEntry();
+  });
+  $("amounts").addEventListener("click", (e) => { const b = e.target.closest("[data-a]"); if (!b) return; ui.amount = +b.dataset.a; ui.custom = ""; renderEntry(); });
+  $("mults").addEventListener("click", (e) => { const b = e.target.closest("[data-m]"); if (!b) return; ui.mult = +b.dataset.m; renderEntry(); });
+  $("add").onclick = () => {
+    const p = preview(); if (!p) return;
+    state.games.push({ v: p, t: Date.now() });
+    save();
+    ui.winners.clear(); ui.mult = 1; ui.manual = ["", "", "", ""]; ui.confirmRow = null;
+    renderAll();
+  };
+  $("undo").onclick = () => { if (!state.games.length) return; ui.confirmRow = state.games.length - 1; renderLog(); };
+  $("log").addEventListener("click", (e) => {
+    const del = e.target.closest("[data-del]");
+    if (del) { state.games.splice(+del.dataset.del, 1); ui.confirmRow = null; save(); renderAll(); return; }
+    if (e.target.closest("[data-cancel]")) { ui.confirmRow = null; renderLog(); return; }
+    const r = e.target.closest("[data-row]"); if (r) { ui.confirmRow = +r.dataset.row; renderLog(); }
+  });
+  $("units").addEventListener("click", (e) => { const b = e.target.closest("[data-u]"); if (!b) return; state.unit = b.dataset.u; save(); renderAll(); });
+  $("resetBox").addEventListener("click", (e) => {
+    if (e.target.id === "reset") { ui.confirmReset = true; renderReset(); }
+    else if (e.target.id === "resetNo") { ui.confirmReset = false; renderReset(); }
+    else if (e.target.id === "resetYes") { state.games = []; ui.confirmReset = false; ui.confirmRow = null; save(); renderAll(); }
+  });
+
+  renderAll();
+})();
+</script>
+
+</html>
